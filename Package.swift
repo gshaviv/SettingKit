@@ -38,7 +38,7 @@ let package = Package(
     ),
 
     // Library that exposes a macro as part of its API, which is used in client programs.
-    .target(name: "SettingMacros", dependencies: ["MacrosMacros"]),
+    .target(name: "SettingKit", dependencies: ["SettingsMacros"]),
 
     // A client of the library, which is able to use the macro in its own code.
     .executableTarget(name: "MacrosClient", dependencies: ["Macros"]),
