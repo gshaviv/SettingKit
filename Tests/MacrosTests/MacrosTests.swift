@@ -3,8 +3,8 @@ import SwiftSyntaxMacrosTestSupport
 import XCTest
 
 // Macro implementations build for the host, so the corresponding module is not available when cross-compiling. Cross-compiled tests may still make use of the macro itself in end-to-end tests.
-#if canImport(MacrosMacros)
-  import MacrosMacros
+#if canImport(SettingMacros)
+  import SettingMacros
 
   let testMacros: [String: Macro.Type] = [
     "AppSettings": AppSettingMacro.self,
@@ -15,7 +15,7 @@ import XCTest
 
 final class MacrosTests: XCTestCase {
   func testMacro() throws {
-    #if canImport(MacrosMacros)
+    #if canImport(SettingMacros)
       assertMacroExpansion(
         """
         @AppSettings(defaults)

@@ -5,13 +5,13 @@ import CompilerPluginSupport
 import PackageDescription
 
 let package = Package(
-  name: "SettingKit",
+  name: "Macros",
   platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .macCatalyst(.v13)],
   products: [
     // Products define the executables and libraries a package produces, making them visible to other packages.
     .library(
-      name: "SettingKit",
-      targets: ["SettingMacros"]
+      name: "SettingsKit",
+      targets: ["SettingsKit"]
     ),
     .executable(
       name: "MacrosClient",
@@ -27,7 +27,7 @@ let package = Package(
     // Targets can depend on other targets in this package and products from dependencies.
     // Macro implementation that performs the source transformation of a macro.
     .macro(
-      name: "SettingsMacros",
+      name: "SettingMacros",
       dependencies: [
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
@@ -38,16 +38,16 @@ let package = Package(
     ),
 
     // Library that exposes a macro as part of its API, which is used in client programs.
-    .target(name: "SettingKit", dependencies: ["SettingsMacros"]),
+    .target(name: "SettingsKit", dependencies: ["SettingMacros"]),
 
     // A client of the library, which is able to use the macro in its own code.
-    .executableTarget(name: "MacrosClient", dependencies: ["Macros"]),
+    .executableTarget(name: "MacrosClient", dependencies: ["SettingsKit"]),
 
     // A test target used to develop the macro implementation.
     .testTarget(
       name: "MacrosTests",
       dependencies: [
-        "MacrosMacros",
+        "SettingMacros",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
       ]
     ),
