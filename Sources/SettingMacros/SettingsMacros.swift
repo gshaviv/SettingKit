@@ -34,7 +34,7 @@ public struct AppSettingMacro: MemberMacro {
       private let _$defaults = \(defaults)
       """,
       """
-      init() {}
+      private init() {}
       """,
       """
       private func readRawRepresentableOrCodable<T>(_ type: T.Type, key: String) -> T? where T: RawRepresentable  {

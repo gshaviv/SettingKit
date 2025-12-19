@@ -10,7 +10,7 @@ import SwiftCompilerPlugin
 import SwiftSyntaxMacros
 
 @main
-struct MacrosPlugin: CompilerPlugin {
+struct SettingsKitPlugin: CompilerPlugin {
   let providingMacros: [Macro.Type] = [
     AppSettingMacro.self,
     SettingMacro.self,
