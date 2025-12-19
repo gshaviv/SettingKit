@@ -5,18 +5,14 @@ import CompilerPluginSupport
 import PackageDescription
 
 let package = Package(
-  name: "Macros",
+  name: "SettingsKit",
   platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .macCatalyst(.v13)],
   products: [
     // Products define the executables and libraries a package produces, making them visible to other packages.
     .library(
       name: "SettingsKit",
       targets: ["SettingsKit"]
-    ),
-    .executable(
-      name: "MacrosClient",
-      targets: ["MacrosClient"]
-    ),
+    )
   ],
   dependencies: [
     // Depend on the Swift 5.9 release of SwiftSyntax

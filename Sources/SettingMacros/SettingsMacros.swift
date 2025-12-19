@@ -4,6 +4,21 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
+public enum SwiftUISupport: String {
+  case none
+  case observable
+  case observableWithBindings
+  
+  public init?(rawValue: String) {
+    switch rawValue.trimmingCharacters(in: .whitespaces) {
+    case "none", ".none": self = .none
+    case "observable", ".observable": self = .observable
+    case "observableWithBindings", ".observableWithBindings": self = .observableWithBindings
+    default: return nil
+    }
+  }
+}
+
 public struct AppSettingMacro: MemberMacro {
   public static func expansion(of node: AttributeSyntax,
                                providingMembersOf declaration: some DeclGroupSyntax,
@@ -15,7 +30,7 @@ public struct AppSettingMacro: MemberMacro {
     }
     let args = node.extractArgs()
     let defaults = args.parse("", using: { $0 }) ?? "UserDefaults.standard"
-    let createBindings = args.parse("createBindings", using: { $0.description.contains("true") }) ?? true
+    let swiftUISupport = args.parse("swiftUISupport", using: { SwiftUISupport(rawValue: $0.description) }) ?? .observableWithBindings
     let createPublishers = args.parse("createPublishers", using: { $0.description.contains("true") }) ?? true
     guard let classDecl = declaration.as(ClassDeclSyntax.self) else {
       context.diagnose(node: node, severity: .error, message: "Can only be applied to a class")
@@ -26,9 +41,6 @@ public struct AppSettingMacro: MemberMacro {
     var decls: [DeclSyntax] = [
       """
       static let shared = \(raw: typeName)()
-      """,
-      """
-      private let _$observationRegistrar = Observation.ObservationRegistrar()
       """,
       """
       private let _$defaults = \(defaults)
@@ -69,6 +81,13 @@ public struct AppSettingMacro: MemberMacro {
       }
       """
     ]
+    
+    switch swiftUISupport {
+      case .none:
+      break
+    case .observable, .observableWithBindings:
+      decls.append(DeclSyntax("private let _$observationRegistrar = Observation.ObservationRegistrar()"))
+    }
 
     // Iterate over variable members to generate binding properties for stored vars (no accessors)
     for member in declaration.memberBlock.members {
@@ -87,7 +106,7 @@ public struct AppSettingMacro: MemberMacro {
         guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
         guard let type = binding.typeAnnotation?.type else { continue }
         let propertyName = pattern.identifier.text
-        if createBindings {
+        if swiftUISupport == .observableWithBindings {
           decls.append(
           """
           var $\(raw: propertyName): Binding<\(type)> {
@@ -123,7 +142,7 @@ extension AppSettingMacro: ExtensionMacro {
 
 extension AppSettingMacro: MemberAttributeMacro {
   public static func expansion(
-    of _: AttributeSyntax,
+    of node: AttributeSyntax,
     attachedTo _: some DeclGroupSyntax,
     providingAttributesFor member: some DeclSyntaxProtocol,
     in _: some MacroExpansionContext
@@ -133,9 +152,11 @@ extension AppSettingMacro: MemberAttributeMacro {
     guard member.is(VariableDeclSyntax.self) else {
       return []
     }
+    let args = node.extractArgs()
+    let swiftUISupport = args.parse("swiftUISupport", using: { SwiftUISupport(rawValue: $0.description) }) ?? .observableWithBindings
 
     return [
-      AttributeSyntax(atSign: .atSignToken(), attributeName: IdentifierTypeSyntax(name: .identifier("_Setting"))),
+      AttributeSyntax(atSign: .atSignToken(), attributeName: IdentifierTypeSyntax(name: .identifier("_Setting(swiftUISupport: .\(swiftUISupport))"))),
     ]
   }
 }
@@ -154,6 +175,8 @@ public struct SettingMacro: AccessorMacro {
     guard let type = syntax.typeAnnotation?.type.trimmed else {
       return []
     }
+    let args = node.extractArgs()
+    let swiftUISupport = args.parse("swiftUISupport", using: { SwiftUISupport(rawValue: $0.description) }) ?? .observableWithBindings
 
     let defaultValue = syntax.initializer?.value
 
@@ -185,11 +208,18 @@ public struct SettingMacro: AccessorMacro {
       let getter: AccessorDeclSyntax =
       """
       get {
-        _$observationRegistrar.access(self, keyPath: \\.\(property))
+        \(swiftUISupport == .none ? "" : "_$observationRegistrar.access(self, keyPath: \\.\(property))")
         return _$defaults.object(forKey: "\(raw: keyName)") as? \(baseType)\(raw: defaultValue == nil ? "" : " ?? \(defaultValue!)")
       }
       """
       let setter: AccessorDeclSyntax =
+      swiftUISupport == .none ?
+      """
+      set {
+        _$defaults.set(newValue, forKey: "\(raw: keyName)")
+        $\(raw: propertyName)Publisher.send(newValue)
+      }
+      """ :
       """
       set {
         _$observationRegistrar.withMutation(of: self, keyPath: \\.\(property)) {
@@ -235,11 +265,18 @@ public struct SettingMacro: AccessorMacro {
       let getter: AccessorDeclSyntax =
       """
       get {
-        _$observationRegistrar.access(self, keyPath: \\.\(property))
+        \(swiftUISupport == .none ? "" : "_$observationRegistrar.access(self, keyPath: \\.\(property))")
         \(raw: getterBody)
       }
       """
       let setter: AccessorDeclSyntax =
+      swiftUISupport == .none ?
+      """
+        set {
+          \(raw: setterBody)
+          $\(raw: propertyName)Publisher.send(newValue)
+        }
+      """ :
       """
       set {
         _$observationRegistrar.withMutation(of: self, keyPath: \\.\(property)) {

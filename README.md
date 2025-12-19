@@ -33,8 +33,10 @@ By default the `@AppSettings` macro uses the `UserDefaults.standard` user defaul
 You need to import SwiftUI and Combine to the file because the macro adds support for SwiftUI by supporting the Observation frameork and creating bindings and creating publishers. This can be suppressed by:
 
 ```
-@AppSettings(createBindings: false, createPublishers: false)
+@AppSettings(swiftUISupport: .none, createPublishers: false)
 ```
+
+The `swiftUISupport` can be `.none`, in which case there is no swiftUI support and views will not be updated when the setting change, `.observable` in which case swiftUI views will be re-rendered when a value they depend on changes, or `.observableWithBindings` which makes it both observable and adds bindings as the property name with a `$` prefix so they can easily be modified from a SwiftUI view. In the case of `.observable` the file should import the `Observation` or `SwiftUI` frameworks, in the case of `.observableWithBindings` the `SwiftUI` framework needs to be imported.
 
 You can use it as follows:
 
