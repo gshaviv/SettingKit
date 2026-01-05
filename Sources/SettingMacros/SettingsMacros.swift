@@ -154,9 +154,10 @@ extension AppSettingMacro: MemberAttributeMacro {
     }
     let args = node.extractArgs()
     let swiftUISupport = args.parse("swiftUISupport", using: { SwiftUISupport(rawValue: $0.description) }) ?? .observableWithBindings
+    let createPublishers = args.parse("createPublishers", using: { $0.description.contains("true") }) ?? true
 
     return [
-      AttributeSyntax(atSign: .atSignToken(), attributeName: IdentifierTypeSyntax(name: .identifier("_Setting(swiftUISupport: .\(swiftUISupport))"))),
+      AttributeSyntax(atSign: .atSignToken(), attributeName: IdentifierTypeSyntax(name: .identifier("_Setting(swiftUISupport: .\(swiftUISupport), createPublishers: \(createPublishers))"))),
     ]
   }
 }
@@ -177,7 +178,7 @@ public struct SettingMacro: AccessorMacro {
     }
     let args = node.extractArgs()
     let swiftUISupport = args.parse("swiftUISupport", using: { SwiftUISupport(rawValue: $0.description) }) ?? .observableWithBindings
-
+    let createPublishers = args.parse("createPublishers", using: { $0.description.contains("true") }) ?? true
     let defaultValue = syntax.initializer?.value
 
     if type.kind != .optionalType && defaultValue == nil {
@@ -217,7 +218,7 @@ public struct SettingMacro: AccessorMacro {
       """
       set {
         _$defaults.set(newValue, forKey: "\(raw: keyName)")
-        $\(raw: propertyName)Publisher.send(newValue)
+       \(createPublishers ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
       }
       """ :
       """
@@ -225,7 +226,7 @@ public struct SettingMacro: AccessorMacro {
         _$observationRegistrar.withMutation(of: self, keyPath: \\.\(property)) {
           _$defaults.set(newValue, forKey: "\(raw: keyName)")
         }
-        $\(raw: propertyName)Publisher.send(newValue)
+       \(createPublishers ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
       }
       """
       return [getter, setter]
@@ -274,7 +275,7 @@ public struct SettingMacro: AccessorMacro {
       """
         set {
           \(raw: setterBody)
-          $\(raw: propertyName)Publisher.send(newValue)
+          \(createPublishers ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
         }
       """ :
       """
@@ -282,7 +283,7 @@ public struct SettingMacro: AccessorMacro {
         _$observationRegistrar.withMutation(of: self, keyPath: \\.\(property)) {
           \(raw: setterBody)
         }
-        $\(raw: propertyName)Publisher.send(newValue)
+        $\(createPublishers ? ")\(raw: propertyName)Publisher.send(newValue)" : "")
       }
       """
       return [getter, setter]

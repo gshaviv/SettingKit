@@ -18,7 +18,7 @@ public macro AppSettings(defaults: UserDefaults = .standard, swiftUISupport: Swi
 /// and additionally a property named `$propertyName` exposing a `Binding` to that property,
 /// allowing observation and two-way binding.
 @attached(accessor)
-public macro _Setting(swiftUISupport: SwiftUISupport) = #externalMacro(module: "SettingMacros", type: "SettingMacro")
+public macro _Setting(swiftUISupport: SwiftUISupport, createPublishers: Bool) = #externalMacro(module: "SettingMacros", type: "SettingMacro")
 
 @attached(peer)
 public macro Default(key: String) = #externalMacro(module: "SettingMacros", type: "DefaultValueMacro")
