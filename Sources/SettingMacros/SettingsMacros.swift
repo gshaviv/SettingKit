@@ -4,7 +4,7 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-public enum SwiftUISupport: String {
+public enum SwiftUISupport: String, CustomStringConvertible {
   case none
   case observable
   case observableWithBindings
@@ -16,6 +16,10 @@ public enum SwiftUISupport: String {
     case "observableWithBindings", ".observableWithBindings": self = .observableWithBindings
     default: return nil
     }
+  }
+  
+  public var description: String {
+    rawValue
   }
 }
 
