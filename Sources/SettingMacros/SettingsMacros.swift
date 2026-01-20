@@ -48,10 +48,14 @@ public struct AppSettingMacro: MemberMacro {
       """,
       """
       private let _$defaults = \(defaults)
-      """,
       """
-      private init() {}
-      """,
+    ]
+    
+    if classDecl.inheritanceClause == nil {
+      decls.append("private init() {}")
+    }
+    
+    decls.append(contentsOf: [
       """
       private func readRawRepresentableOrCodable<T>(_ type: T.Type, key: String) -> T? where T: RawRepresentable  {
         let data = _$defaults.value(forKey: key)
@@ -84,7 +88,7 @@ public struct AppSettingMacro: MemberMacro {
         _$defaults.set(value.rawValue, forKey: key)
       }
       """
-    ]
+    ])
     
     switch swiftUISupport {
       case .none:
