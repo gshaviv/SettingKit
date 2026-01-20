@@ -291,7 +291,7 @@ public struct SettingMacro: AccessorMacro {
         _$observationRegistrar.withMutation(of: self, keyPath: \\.\(property)) {
           \(raw: setterBody)
         }
-        $\(createPublishers ? ")\(raw: propertyName)Publisher.send(newValue)" : "")
+        \(createPublishers ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
       }
       """
       return [getter, setter]
