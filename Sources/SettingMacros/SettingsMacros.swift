@@ -4,22 +4,42 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-public enum SwiftUISupport: String, CustomStringConvertible {
-  case none
-  case observable
-  case observableWithBindings
+public struct SynthesixeSetting: OptionSet, Sendable, CustomStringConvertible {
+  public let rawValue: Int
   
-  public init?(rawValue: String) {
-    switch rawValue.trimmingCharacters(in: .whitespaces) {
-    case "none", ".none": self = .none
-    case "observable", ".observable": self = .observable
-    case "observableWithBindings", ".observableWithBindings": self = .observableWithBindings
-    default: return nil
+  public static let observation = SynthesixeSetting(rawValue: 1)
+  public static let binding = SynthesixeSetting(rawValue: 1 << 1)
+  public static let publisher = SynthesixeSetting(rawValue: 1 << 2)
+  
+  init(string: String) {
+    self = []
+    if string.contains("observation") {
+      insert(.observation)
+    }
+    if string.contains("binding") {
+      insert(.binding)
+    }
+    if string.contains("publisher") {
+      insert(.publisher)
     }
   }
   
+  public init(rawValue: Int) {
+    self.rawValue = rawValue
+  }
+  
   public var description: String {
-    rawValue
+    var components = [String]()
+    if contains(.observation) {
+      components.append(".observation")
+    }
+    if contains(.binding) {
+      components.append(".binding")
+    }
+    if contains(.publisher) {
+      components.append(".publisher")
+    }
+    return components.isEmpty ? "[]" : "[\(components.joined(separator: ","))]"
   }
 }
 
@@ -34,8 +54,7 @@ public struct AppSettingMacro: MemberMacro {
     }
     let args = node.extractArgs()
     let defaults = args.parse("", using: { $0 }) ?? "UserDefaults.standard"
-    let swiftUISupport = args.parse("swiftUISupport", using: { SwiftUISupport(rawValue: $0.description) }) ?? .observableWithBindings
-    let createPublishers = args.parse("createPublishers", using: { $0.description.contains("true") }) ?? true
+    let options = args.parse("options", using: { SynthesixeSetting(string: $0.description) }) ?? [.binding, .observation, .publisher]
     guard let classDecl = declaration.as(ClassDeclSyntax.self) else {
       context.diagnose(node: node, severity: .error, message: "Can only be applied to a class")
       return []
@@ -90,10 +109,7 @@ public struct AppSettingMacro: MemberMacro {
       """
     ])
     
-    switch swiftUISupport {
-      case .none:
-      break
-    case .observable, .observableWithBindings:
+    if options.contains(.observation) {
       decls.append(DeclSyntax("private let _$observationRegistrar = Observation.ObservationRegistrar()"))
     }
 
@@ -114,7 +130,7 @@ public struct AppSettingMacro: MemberMacro {
         guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
         guard let type = binding.typeAnnotation?.type else { continue }
         let propertyName = pattern.identifier.text
-        if swiftUISupport == .observableWithBindings {
+        if options.contains(.binding) {
           decls.append(
           """
           var $\(raw: propertyName): Binding<\(type)> {
@@ -128,7 +144,7 @@ public struct AppSettingMacro: MemberMacro {
           """
           )
         }
-        if createPublishers {
+        if options.contains(.publisher) {
           decls.append(
           """
           lazy var $\(raw: propertyName)Publisher = PassthroughSubject<\(type), Never>()
@@ -161,11 +177,10 @@ extension AppSettingMacro: MemberAttributeMacro {
       return []
     }
     let args = node.extractArgs()
-    let swiftUISupport = args.parse("swiftUISupport", using: { SwiftUISupport(rawValue: $0.description) }) ?? .observableWithBindings
-    let createPublishers = args.parse("createPublishers", using: { $0.description.contains("true") }) ?? true
+    let options = args.parse("options", using: { SynthesixeSetting(string: $0.description) })
 
     return [
-      AttributeSyntax(atSign: .atSignToken(), attributeName: IdentifierTypeSyntax(name: .identifier("_Setting(swiftUISupport: .\(swiftUISupport), createPublishers: \(createPublishers))"))),
+      AttributeSyntax(atSign: .atSignToken(), attributeName: IdentifierTypeSyntax(name:  options == nil ? .identifier("_Setting") :  .identifier("_Setting(options: \(options?.description ?? ""))"))),
     ]
   }
 }
@@ -185,8 +200,7 @@ public struct SettingMacro: AccessorMacro {
       return []
     }
     let args = node.extractArgs()
-    let swiftUISupport = args.parse("swiftUISupport", using: { SwiftUISupport(rawValue: $0.description) }) ?? .observableWithBindings
-    let createPublishers = args.parse("createPublishers", using: { $0.description.contains("true") }) ?? true
+    let options = args.parse("options", using: { SynthesixeSetting(string: $0.description) }) ?? [.publisher, .observation, .binding]
     let defaultValue = syntax.initializer?.value
 
     if type.kind != .optionalType && defaultValue == nil {
@@ -217,16 +231,17 @@ public struct SettingMacro: AccessorMacro {
       let getter: AccessorDeclSyntax =
       """
       get {
-        \(swiftUISupport == .none ? "" : "_$observationRegistrar.access(self, keyPath: \\.\(property))")
+        \(!options.contains(.observation) ? "" : "_$observationRegistrar.access(self, keyPath: \\.\(property))")
         return _$defaults.object(forKey: "\(raw: keyName)") as? \(baseType)\(raw: defaultValue == nil ? "" : " ?? \(defaultValue!)")
       }
       """
+      
       let setter: AccessorDeclSyntax =
-      swiftUISupport == .none ?
+      !options.contains(.observation) ?
       """
       set {
         _$defaults.set(newValue, forKey: "\(raw: keyName)")
-       \(createPublishers ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
+       \(options.contains(.publisher) ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
       }
       """ :
       """
@@ -234,7 +249,7 @@ public struct SettingMacro: AccessorMacro {
         _$observationRegistrar.withMutation(of: self, keyPath: \\.\(property)) {
           _$defaults.set(newValue, forKey: "\(raw: keyName)")
         }
-       \(createPublishers ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
+       \(options.contains(.publisher) ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
       }
       """
       return [getter, setter]
@@ -274,16 +289,16 @@ public struct SettingMacro: AccessorMacro {
       let getter: AccessorDeclSyntax =
       """
       get {
-        \(swiftUISupport == .none ? "" : "_$observationRegistrar.access(self, keyPath: \\.\(property))")
+        \(!options.contains(.observation) ? "" : "_$observationRegistrar.access(self, keyPath: \\.\(property))")
         \(raw: getterBody)
       }
       """
       let setter: AccessorDeclSyntax =
-      swiftUISupport == .none ?
+      !options.contains(.observation) ?
       """
         set {
           \(raw: setterBody)
-          \(createPublishers ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
+          \(options.contains(.publisher) ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
         }
       """ :
       """
@@ -291,7 +306,7 @@ public struct SettingMacro: AccessorMacro {
         _$observationRegistrar.withMutation(of: self, keyPath: \\.\(property)) {
           \(raw: setterBody)
         }
-        \(createPublishers ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
+        \(options.contains(.publisher) ? "$\(raw: propertyName)Publisher.send(newValue)" : "")
       }
       """
       return [getter, setter]

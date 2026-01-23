@@ -6,7 +6,7 @@ import XCTest
 #if canImport(SettingMacros)
   import SettingMacros
 
-  let testMacros: [String: Macro.Type] = [
+  nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
     "AppSettings": AppSettingMacro.self,
     "_Setting": SettingMacro.self,
     "Default": DefaultValueMacro.self,
@@ -155,7 +155,7 @@ final class MacrosTests: XCTestCase {
     #if canImport(SettingMacros)
       assertMacroExpansion(
         """
-        @AppSettings(defaults, swiftUISupport: .none, createPublishers: false)
+        @AppSettings(defaults, swiftUISupport: .none, options: [.publisher])
         class AppDefaults {
           var delayMinutes: Double?
           var diaMinutes: Double = 210
@@ -166,11 +166,11 @@ final class MacrosTests: XCTestCase {
         """
 
         class AppDefaults {
-          @_Setting(swiftUISupport: .none, createPublishers: false)
+          @_Setting(options: [.publisher])
           var delayMinutes: Double?
-          @_Setting(swiftUISupport: .none, createPublishers: false) 
+          @_Setting(options: [.publisher])
           var diaMinutes: Double = 210
-          @_Setting(swiftUISupport: .none, createPublishers: false) 
+          @_Setting(options: [.publisher])
           var peakMinutes: Double = 90
 
             static let shared = AppDefaults()
@@ -207,6 +207,12 @@ final class MacrosTests: XCTestCase {
             private func writeRawRepresentableOrCodable<T>(value: T, key: String)  where T: RawRepresentable  {
               _$defaults.set(value.rawValue, forKey: key)
             }
+        
+            lazy var $delayMinutesPublisher = PassthroughSubject<Double?, Never>()
+
+            lazy var $diaMinutesPublisher = PassthroughSubject<Double , Never>()
+
+            lazy var $peakMinutesPublisher = PassthroughSubject<Double , Never>()
         }
 
         extension AppDefaults: Observation.Observable, @unchecked Sendable {
@@ -223,7 +229,7 @@ final class MacrosTests: XCTestCase {
     #if canImport(SettingMacros)
       assertMacroExpansion(
         """
-        @AppSettings(defaults, swiftUISupport: .none, createPublishers: false)
+        @AppSettings(defaults, options: [])
         class AppDefaults {
           var delayMinutes: Double?
           var diaMinutes: Double = 210
